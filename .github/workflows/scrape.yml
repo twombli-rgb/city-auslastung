@@ -1,11 +1,11 @@
 name: Scrape City Auslastung
 on:
   schedule:
-    - cron: "*/5 * * * *"  # every 5 minutes (UTC)
-  workflow_dispatch: {}      # allow manual runs
+    - cron: "*/15 * * * *"   # every 15 minutes (UTC)
+  workflow_dispatch: {}
 
 permissions:
-  contents: write            # allow committing the CSV
+  contents: write
 
 concurrency:
   group: scrape_city_csv
@@ -13,8 +13,9 @@ concurrency:
 
 jobs:
   scrape:
-    timeout-minutes: 5
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,12 +24,30 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"                   # enables built-in pip cache
+          cache-dependency-path: |
+            requirements.txt
 
-      - name: Install Playwright (Python)
+      # Cache Playwright browser binaries (~/.cache/ms-playwright)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install playwright
-          python -m playwright install --with-deps chromium
+          pip install -r requirements.txt
+
+      # Install Chromium *once* (subsequent runs reuse cache above)
+      - name: Ensure Chromium installed
+        run: |
+          python -m playwright install chromium
+          # If fonts/locale deps ever missing, switch to:
+          # python -m playwright install --with-deps chromium
 
       - name: Run scraper
         run: python remote_scrape.py
@@ -38,5 +57,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"
           git add swiftbar_city_auslastung.csv
-          git commit -m "Update CSV $(date -u +\"%Y-%m-%dT%H:%M:%SZ\")" || echo "No changes"
+          git commit -m "Update CSV $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
           git push
