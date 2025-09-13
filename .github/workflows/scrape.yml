@@ -2,8 +2,7 @@ name: Scrape City Auslastung
 on:
   schedule:
     - cron: "*/15 * * * *"   # every 15 minutes (UTC)
-  workflow_dispatch: {}
-
+    
 jobs:
   ping:
     runs-on: ubuntu-latest
