@@ -1,75 +1,14 @@
 name: Scrape City Auslastung
 on:
   schedule:
-    - cron: "*/5 * * * *"     # every 15 minutes (UTC)
-  workflow_dispatch: {}         # keep manual trigger
-
-permissions:
-  contents: write
-
-concurrency:
-  group: scrape_city_csv
-  cancel-in-progress: false
+    - cron: "*/15 * * * *"   # every 15 minutes (UTC)
+  workflow_dispatch: {}
 
 jobs:
-  scrape:
+  ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-browsers-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-browsers-
-
-      - name: Install dependencies
+      - name: Say hello (prove schedule is parsed)
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Ensure Chromium installed
-        run: python -m playwright install chromium
-
-      - name: Run scraper (with debug artifacts)
-        run: |
-          export SCRAPE_DEBUG=1
-          python remote_scrape.py
-
-      - name: Upload debug artifacts (if any)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: scrape-artifacts
-          path: artifacts/*
-          if-no-files-found: ignore
-
-      - name: Commit & push CSV (rebase if needed)
-        run: |
-          set -e
-          git config user.name "github-actions"
-          git config user.email "actions@users.noreply.github.com"
-          git add swiftbar_city_auslastung.csv
-          git commit -m "Update CSV $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
-          if [ -z "$(git log origin/main..HEAD)" ]; then
-            echo "Nothing to push."
-            exit 0
-          fi
-          for attempt in 1 2 3; do
-            git pull --rebase origin main || { git rebase --abort || true; }
-            git push && break || { echo "Push failed, retrying ($attempt/3)…"; sleep 3; }
-          done
+          date -u +"UTC now: %Y-%m-%d %H:%M:%S"
+          echo "Schedule is working if you see 'Next run' on Actions page"
