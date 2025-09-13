@@ -1,8 +1,8 @@
 name: Scrape City Auslastung
 on:
   schedule:
-    - cron: "*/15 5-20 * * *"   # every 15 minutes (UTC)
-  workflow_dispatch: {}
+    - cron: "*/15 * * * *"     # every 15 minutes (UTC)
+  workflow_dispatch: {}         # keep manual trigger
 
 permissions:
   contents: write
@@ -19,37 +19,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"                   # enables built-in pip cache
-          cache-dependency-path: |
-            requirements.txt
+          cache: "pip"
+          cache-dependency-path: requirements.txt
 
-      # Cache Playwright browser binaries (~/.cache/ms-playwright)
       - name: Cache Playwright browsers
         uses: actions/cache@v3
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-browsers
+          key: ${{ runner.os }}-playwright-browsers-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-playwright-browsers-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Install Chromium *once* (subsequent runs reuse cache above)
       - name: Ensure Chromium installed
-        run: |
-          python -m playwright install chromium
-          # If fonts/locale deps ever missing, switch to:
-          # python -m playwright install --with-deps chromium
+        run: python -m playwright install chromium
 
-      - name: Run scraper
+      - name: Run scraper (with debug artifacts)
         run: |
           export SCRAPE_DEBUG=1
           python remote_scrape.py
@@ -62,10 +58,18 @@ jobs:
           path: artifacts/*
           if-no-files-found: ignore
 
-      - name: Commit & push CSV
+      - name: Commit & push CSV (rebase if needed)
         run: |
+          set -e
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"
           git add swiftbar_city_auslastung.csv
           git commit -m "Update CSV $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes"
-          git push
+          if [ -z "$(git log origin/main..HEAD)" ]; then
+            echo "Nothing to push."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            git pull --rebase origin main || { git rebase --abort || true; }
+            git push && break || { echo "Push failed, retrying ($attempt/3)…"; sleep 3; }
+          done
