@@ -1,7 +1,7 @@
 name: Scrape City Auslastung
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/15 7-22 * * *"
   workflow_dispatch: {}
 
 permissions:
